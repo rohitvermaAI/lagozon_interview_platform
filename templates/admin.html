@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block content %}
+<script>
+async function filterCandidates(event) {
+    event.preventDefault();  // Prevent form from submitting the usual way
+
+    const qualifyingScoreInput = document.getElementById("qualifying_score");
+    if (!qualifyingScoreInput) {
+        console.error("Qualifying score input not found");
+        return;
+    }
+    
+    const qualifyingScore = qualifyingScoreInput.value;
+    const response = await fetch(`/filter-candidates?qualifying_score=${qualifyingScore}`);
+
+    if (response.ok) {
+        const result = await response.json();
+
+        let linkContainer = document.getElementById("shortlisted-link-container");
+        if (!linkContainer) {
+            linkContainer = document.createElement("div");
+            linkContainer.id = "shortlisted-link-container";
+            document.querySelector("form").after(linkContainer);  // Insert after form
+        }
+
+        linkContainer.innerHTML = `
+            <a href="${result.shortlisted_csv_url}">Download Shortlisted Candidates as CSV</a>
+        `;
+    } else {
+        console.error("Failed to filter candidates:", response.statusText);
+    }
+}    
+
+document.addEventListener("DOMContentLoaded", function () {
+    const filterForm = document.querySelector("form#filter-form");
+    if (filterForm) {
+        filterForm.addEventListener("submit", filterCandidates);
+    }
+});
+
+async function loadQuiz() {
+    const queryParams = new URLSearchParams(window.location.search);
+    const quizName = queryParams.get("quiz_name");
+
+    if (quizName) {
+        const response = await fetch(`/load-quiz?quiz_name=${quizName}`);
+        if (response.ok) {
+            const quizData = await response.json();
+
+            const container = document.getElementById("questions-container");
+            container.innerHTML = "";  // Clear existing content
+
+            quizData.questions.forEach((q, index) => {
+                const questionBlock = document.createElement("div");
+                questionBlock.classList.add("question-block");
+                questionBlock.innerHTML = `
+                    <p>${q.question}</p>
+                    ${q.options.map(option => `<input type="radio" name="q${index}" value="${option}" required> ${option}<br>`).join('')}
+                `;
+                container.appendChild(questionBlock);
+            });
+        } else {
+            console.error("Failed to load quiz:", response.statusText);
+        }
+    }
+}
+
+window.onload = function () {
+    loadQuiz();
+};
+
+function addQuestion() {
+    const questionContainer = document.getElementById("questions-container");
+
+    const questionIndex = document.querySelectorAll(".question-block").length;
+
+    const questionBlock = document.createElement("div");
+    questionBlock.classList.add("question-block");
+
+    questionBlock.innerHTML = `
+        <label for="question_${questionIndex}">Question ${questionIndex + 1}:</label><br>
+        <input type="text" id="question_${questionIndex}" name="questions[${questionIndex}][question]" required><br><br>
+
+        <label for="option1_${questionIndex}">Option 1:</label><br>
+        <input type="text" id="option1_${questionIndex}" name="questions[${questionIndex}][option1]" required><br><br>
+
+        <label for="option2_${questionIndex}">Option 2:</label><br>
+        <input type="text" id="option2_${questionIndex}" name="questions[${questionIndex}][option2]" required><br><br>
+
+        <label for="option3_${questionIndex}">Option 3:</label><br>
+        <input type="text" id="option3_${questionIndex}" name="questions[${questionIndex}][option3]" required><br><br>
+
+        <label for="option4_${questionIndex}">Option 4:</label><br>
+        <input type="text" id="option4_${questionIndex}" name="questions[${questionIndex}][option4]" required><br><br>
+
+        <label for="answer_${questionIndex}">Answer:</label><br>
+        <input type="text" id="answer_${questionIndex}" name="questions[${questionIndex}][answer]" required><br><br>
+    `;
+
+    questionContainer.appendChild(questionBlock);
+}
+
+function copyLink() {
+    var copyText = document.getElementById("quizLink");
+    copyText.select();
+    document.execCommand("copy");
+    alert("Quiz link copied: " + copyText.value);
+}
+</script>
+
+<div class="container">
+    <h1>Admin Panel</h1>
+    <a href="/admin?view=results">Show Results</a> |
+    <a href="/admin?view=make-quiz">Make Quiz</a> |
+    <a href="/admin?view=select-quiz">Select Quiz</a><br><br>
+
+    {% if view == 'results' %}
+    <h2>Interview Results</h2>
+    <form id="filter-form">
+        <label for="qualifying_score">Qualifying Score:</label>
+        <input type="number" id="qualifying_score" name="qualifying_score" value="{{ qualifying_score }}"
+            required><br><br>
+        <button type="submit">Filter Shortlisted Candidates</button>
+    </form>
+    <br>
+    <a href="/download-results">Download Full Results as CSV</a><br>
+    {% if shortlisted_csv %}
+    <a href="/download-shortlisted-results">Download Shortlisted Candidates as CSV</a>
+    {% endif %}
+    {% elif view == 'make-quiz' %}
+    <h2>Make Quiz</h2>
+    <form id="quiz-form" action="/save-quiz" method="post">
+        <label for="quiz_name">Quiz Name:</label><br>
+        <input type="text" id="quiz_name" name="quiz_name" required><br><br>
+
+        <div id="questions-container">
+            <!-- Initial question block -->
+            <div class="question-block">
+                <label for="question_0">Question 1:</label><br>
+                <input type="text" id="question_0" name="questions[0][question]" required><br><br>
+
+                <label for="option1_0">Option 1:</label><br>
+                <input type="text" id="option1_0" name="questions[0][option1]" required><br><br>
+
+                <label for="option2_0">Option 2:</label><br>
+                <input type="text" id="option2_0" name="questions[0][option2]" required><br><br>
+
+                <label for="option3_0">Option 3:</label><br>
+                <input type="text" id="option3_0" name="questions[0][option3]" required><br><br>
+
+                <label for="option4_0">Option 4:</label><br>
+                <input type="text" id="option4_0" name="questions[0][option4]" required><br><br>
+
+                <label for="answer_0">Answer:</label><br>
+                <input type="text" id="answer_0" name="questions[0][answer]" required><br><br>
+            </div>
+        </div>
+
+        <!-- Button to add another question dynamically -->
+        <button type="button" onclick="addQuestion()">Add Another Question</button><br><br>
+
+        <!-- Button to save the entire quiz -->
+        <input type="submit" value="Save Quiz">
+    </form>
+
+    {% elif view == "select-quiz" %}
+    <form action="/admin" method="get" id="select-form">
+        <label for="quiz-selection">Select a quiz:</label>
+        <select id="quiz-selection" name="quiz_name">
+            <option value="" disabled selected>Select a quiz</option>
+            {% for quiz in quizzes %}
+            <option value="{{ quiz }}">{{ quiz }}</option>
+            {% endfor %}
+        </select>
+        <input type="hidden" name="view" value="select-quiz">
+        <button type="submit">Generate Link</button>
+    </form>
+    <br>
+
+    {% if quiz_link %}
+    <h2>Quiz Link</h2>
+    <div class="input-group">
+        <input type="text" id="quizLink" value="{{ quiz_link }}" readonly>
+        <button onclick="copyLink()">Copy</button>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

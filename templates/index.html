@@ -1,0 +1,92 @@
+<!-- index.html -->
+{% extends "base.html" %}
+
+{% block content %}
+
+
+<div class="container">
+    <div id="timer"></div>
+
+    <h1>Welcome {{ name }}</h1>
+    <p>Email: {{ email }}</p>
+    <h1>Questions</h1>
+    <form method="POST" action="/submit">
+        <input type="hidden" name="quiz_name" value="{{ quiz_name }}">
+        <input type="hidden" name="name" value="{{ name }}">
+        <input type="hidden" name="email" value="{{ email }}">
+        <!-- Assuming questions are rendered dynamically -->
+        {% for idx, question in enumerated(questions) %}
+            <div>
+                <label>{{ question.question }}</label><br>
+                <input type="radio" name="q{{ idx }}" value="{{ question.options[0] }}"> {{ question.options[0] }}<br>
+                <input type="radio" name="q{{ idx }}" value="{{ question.options[1] }}"> {{ question.options[1] }}<br>
+                <input type="radio" name="q{{ idx }}" value="{{ question.options[2] }}"> {{ question.options[2] }}<br>
+                <input type="radio" name="q{{ idx }}" value="{{ question.options[3] }}"> {{ question.options[3] }}<br>
+            </div>
+        {% endfor %}
+        <button type="submit">Submit</button>
+    </form></div>
+
+<script>
+    function startTimer(duration, display) {
+        let timer = duration, minutes, seconds;
+        const interval = setInterval(function () {
+            minutes = parseInt(timer / 60, 10);
+            seconds = parseInt(timer % 60, 10);
+
+            minutes = minutes < 10 ? "0" + minutes : minutes;
+            seconds = seconds < 10 ? "0" + seconds : seconds;
+
+            display.textContent = minutes + ":" + seconds;
+
+            if (--timer < 0) {
+                clearInterval(interval);
+                document.querySelector('form').submit();  // Auto-submit when time is up
+            }
+        }, 1000);
+    }
+
+    async function loadQuiz() {
+        const queryParams = new URLSearchParams(window.location.search);
+        const quizName = queryParams.get("quiz_name");
+        const name = queryParams.get("name");
+        const email = queryParams.get("email");
+
+        if (quizName) {
+            const response = await fetch(`/load-quiz?quiz_name=${quizName}`);
+            if (response.ok) {
+                const quizData = await response.json();
+                
+                // Populate name and email
+                document.querySelector('input[name="name"]').value = name;
+                document.querySelector('input[name="email"]').value = email;
+
+                // Display the questions
+                const container = document.getElementById("questions-container");
+                container.innerHTML = "";  // Clear existing content
+
+                quizData.questions.forEach((q, index) => {
+                    const questionBlock = document.createElement("div");
+                    questionBlock.classList.add("question-block");
+                    questionBlock.innerHTML = `
+                        <p>${q.question}</p>
+                        ${q.options.map(option => `<input type="radio" name="q${index}" value="${option}" required> ${option}<br>`).join('')}
+                    `;
+                    container.appendChild(questionBlock);
+                });
+            } else {
+                console.error("Failed to load quiz:", response.statusText);
+            }
+        }
+    }
+
+    window.onload = function () {
+        const time = 1200;  // 1 minute in seconds
+        const display = document.querySelector('#timer');  // The timer element
+        startTimer(time, display);  // Start the timer
+
+        loadQuiz();
+    };
+</script>
+
+{% endblock %}
