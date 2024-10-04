@@ -146,13 +146,14 @@ async def submit(request: Request, quiz_name: str = Form(...), name: str = Form(
 async def admin(
     request: Request, 
     authorized: bool = Depends(authenticate), 
-    view: str = "select-quiz", 
+    view: str = "results", 
+    
     quiz_name: str = Query(None), 
     qualifying_score: Optional[int] = Query(None)
 ):
     quizzes = []
     quiz_link = None
-
+    existing_results = []
     if view == "select-quiz":
         # Read quizzes from Azure Blob Storage
         blob_list = container_client.list_blobs(name_starts_with=QUIZZES_DIRECTORY)
@@ -164,36 +165,38 @@ async def admin(
             quiz_link = urljoin(str(request.url_for('welcome')), f"?{query_params}")
     
     shortlisted_csv = False
-
-    if view == 'results' and qualifying_score is not None:
-        # Read all results from Azure Blob Storage
+    if view == 'results':
         blob_client = container_client.get_blob_client(BLOB_NAME)
         blob_data = blob_client.download_blob().readall()
         existing_csv = io.StringIO(blob_data.decode('utf-8'))
         existing_csv_reader = csv.DictReader(existing_csv)
         existing_results = list(existing_csv_reader)
+        if qualifying_score is not None:
+            # Read all results from Azure Blob Storage
+            
 
-        # Filter results based on qualifying score
-        shortlisted_candidates = [result for result in existing_results if int(result['score']) >= qualifying_score]
+            # Filter results based on qualifying score
+            shortlisted_candidates = [result for result in existing_results if int(result['score']) >= qualifying_score]
 
-        # Generate a new CSV for shortlisted candidates
-        shortlisted_output = io.StringIO()
-        writer = csv.DictWriter(shortlisted_output, fieldnames=["name", "email", "Role", "score"])
-        writer.writeheader()
-        writer.writerows(shortlisted_candidates)
+            # Generate a new CSV for shortlisted candidates
+            shortlisted_output = io.StringIO()
+            writer = csv.DictWriter(shortlisted_output, fieldnames=["name", "email", "Role", "score"])
+            writer.writeheader()
+            writer.writerows(shortlisted_candidates)
 
-        # Upload the shortlisted candidates CSV to Azure Blob Storage
-        blob_client = container_client.get_blob_client("shortlisted_candidates.csv")
-        blob_client.upload_blob(shortlisted_output.getvalue(), overwrite=True)
-        
-        shortlisted_csv = True
+            # Upload the shortlisted candidates CSV to Azure Blob Storage
+            blob_client = container_client.get_blob_client("shortlisted_candidates.csv")
+            blob_client.upload_blob(shortlisted_output.getvalue(), overwrite=True)
+            
+            shortlisted_csv = True
 
-    # Render the admin template with the filtered results
+        # Render the admin template with the filtered results
     return templates.TemplateResponse("admin.html", {
         "request": request,
         "view": view,
         "quiz_name": quiz_name,
         "quiz_link": quiz_link,
+        "results": existing_results,
         "quizzes": quizzes,
         "shortlisted_csv": shortlisted_csv,
         "qualifying_score": qualifying_score  # Pass the score back to the template only for the results view

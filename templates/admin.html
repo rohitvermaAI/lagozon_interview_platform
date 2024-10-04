@@ -2,83 +2,125 @@
 
 {% block content %}
 <script>
-async function filterCandidates(event) {
-    event.preventDefault();  // Prevent form from submitting the usual way
+    const RESULTS_PER_PAGE = 10;
+    let currentPage = 1;
+    let totalPages = 1;
 
-    const qualifyingScoreInput = document.getElementById("qualifying_score");
-    if (!qualifyingScoreInput) {
-        console.error("Qualifying score input not found");
-        return;
-    }
-    
-    const qualifyingScore = qualifyingScoreInput.value;
-    const response = await fetch(`/filter-candidates?qualifying_score=${qualifyingScore}`);
+    function showResultsPage(page) {
+        const rows = document.querySelectorAll("#results-table tbody tr");
+        const totalRows = rows.length;
+        totalPages = Math.ceil(totalRows / RESULTS_PER_PAGE);
 
-    if (response.ok) {
-        const result = await response.json();
+        // Hide all rows first
+        rows.forEach(row => row.style.display = "none");
 
-        let linkContainer = document.getElementById("shortlisted-link-container");
-        if (!linkContainer) {
-            linkContainer = document.createElement("div");
-            linkContainer.id = "shortlisted-link-container";
-            document.querySelector("form").after(linkContainer);  // Insert after form
+        // Show only the rows for the current page
+        const start = (page - 1) * RESULTS_PER_PAGE;
+        const end = Math.min(start + RESULTS_PER_PAGE, totalRows);
+        for (let i = start; i < end; i++) {
+            rows[i].style.display = "";
         }
 
-        linkContainer.innerHTML = `
+        // Update button states
+        document.getElementById("prev-button").disabled = page === 1;
+        document.getElementById("next-button").disabled = page === totalPages;
+    }
+
+    function nextPage() {
+        if (currentPage < totalPages) {
+            currentPage++;
+            showResultsPage(currentPage);
+        }
+    }
+
+    function prevPage() {
+        if (currentPage > 1) {
+            currentPage--;
+            showResultsPage(currentPage);
+        }
+    }
+
+    // window.onload = function () {
+    //     showResultsPage(1); // Initialize with page 1
+    // };
+    async function filterCandidates(event) {
+        event.preventDefault();  // Prevent form from submitting the usual way
+
+        const qualifyingScoreInput = document.getElementById("qualifying_score");
+        if (!qualifyingScoreInput) {
+            console.error("Qualifying score input not found");
+            return;
+        }
+
+        const qualifyingScore = qualifyingScoreInput.value;
+        const response = await fetch(`/filter-candidates?qualifying_score=${qualifyingScore}`);
+
+        if (response.ok) {
+            const result = await response.json();
+
+            let linkContainer = document.getElementById("shortlisted-link-container");
+            if (!linkContainer) {
+                linkContainer = document.createElement("div");
+                linkContainer.id = "shortlisted-link-container";
+                document.querySelector("form").after(linkContainer);  // Insert after form
+            }
+
+            linkContainer.innerHTML = `
             <a href="${result.shortlisted_csv_url}">Download Shortlisted Candidates as CSV</a>
         `;
-    } else {
-        console.error("Failed to filter candidates:", response.statusText);
+        } else {
+            console.error("Failed to filter candidates:", response.statusText);
+        }
     }
-}    
 
-document.addEventListener("DOMContentLoaded", function () {
-    const filterForm = document.querySelector("form#filter-form");
-    if (filterForm) {
-        filterForm.addEventListener("submit", filterCandidates);
-    }
-});
+    document.addEventListener("DOMContentLoaded", function () {
+        const filterForm = document.querySelector("form#filter-form");
+        if (filterForm) {
+            filterForm.addEventListener("submit", filterCandidates);
+        }
+    });
 
-async function loadQuiz() {
-    const queryParams = new URLSearchParams(window.location.search);
-    const quizName = queryParams.get("quiz_name");
+    async function loadQuiz() {
+        const queryParams = new URLSearchParams(window.location.search);
+        const quizName = queryParams.get("quiz_name");
 
-    if (quizName) {
-        const response = await fetch(`/load-quiz?quiz_name=${quizName}`);
-        if (response.ok) {
-            const quizData = await response.json();
+        if (quizName) {
+            const response = await fetch(`/load-quiz?quiz_name=${quizName}`);
+            if (response.ok) {
+                const quizData = await response.json();
 
-            const container = document.getElementById("questions-container");
-            container.innerHTML = "";  // Clear existing content
+                const container = document.getElementById("questions-container");
+                container.innerHTML = "";  // Clear existing content
 
-            quizData.questions.forEach((q, index) => {
-                const questionBlock = document.createElement("div");
-                questionBlock.classList.add("question-block");
-                questionBlock.innerHTML = `
+                quizData.questions.forEach((q, index) => {
+                    const questionBlock = document.createElement("div");
+                    questionBlock.classList.add("question-block");
+                    questionBlock.innerHTML = `
                     <p>${q.question}</p>
                     ${q.options.map(option => `<input type="radio" name="q${index}" value="${option}" required> ${option}<br>`).join('')}
                 `;
-                container.appendChild(questionBlock);
-            });
-        } else {
-            console.error("Failed to load quiz:", response.statusText);
+                    container.appendChild(questionBlock);
+                });
+            } else {
+                console.error("Failed to load quiz:", response.statusText);
+            }
         }
     }
-}
 
-window.onload = function () {
-    loadQuiz();
-};
+    window.onload = function () {
+        showResultsPage(1);
+        loadQuiz();
+    };
 
-function addQuestion() {
-    const questionContainer = document.getElementById("questions-container");
+    function addQuestion() {
+        const questionContainer = document.getElementById("questions-container");
 
-    const questionIndex = document.querySelectorAll(".question-block").length;
+        const questionIndex = document.querySelectorAll(".question-block").length;
 
-    const questionBlock = document.createElement("div");
-    questionBlock.classList.add("question-block");
+        const questionBlock = document.createElement("div");
+        questionBlock.classList.add("question-block");
 
-    questionBlock.innerHTML = `
+        questionBlock.innerHTML = `
         <label for="question_${questionIndex}">Question ${questionIndex + 1}:</label><br>
         <input type="text" id="question_${questionIndex}" name="questions[${questionIndex}][question]" required><br><br>
 
@@ -98,15 +140,15 @@ function addQuestion() {
         <input type="text" id="answer_${questionIndex}" name="questions[${questionIndex}][answer]" required><br><br>
     `;
 
-    questionContainer.appendChild(questionBlock);
-}
+        questionContainer.appendChild(questionBlock);
+    }
 
-function copyLink() {
-    var copyText = document.getElementById("quizLink");
-    copyText.select();
-    document.execCommand("copy");
-    alert("Quiz link copied: " + copyText.value);
-}
+    function copyLink() {
+        var copyText = document.getElementById("quizLink");
+        copyText.select();
+        document.execCommand("copy");
+        alert("Quiz link copied: " + copyText.value);
+    }
 </script>
 
 <div class="container">
@@ -117,6 +159,37 @@ function copyLink() {
 
     {% if view == 'results' %}
     <h2>Interview Results</h2>
+
+    <table id="results-table" border="1">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Score</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in results %}
+            <tr>
+                <td>{{ result.name }}</td>
+                <td>{{ result.email }}</td>
+                <td>{{ result.score }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3">No results available.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Pagination controls -->
+    <div id="pagination-controls" style="margin-top: 10px;">
+        <button id="prev-button" onclick="prevPage()" disabled>Previous</button>
+        <button id="next-button" onclick="nextPage()">Next</button>
+    </div>
+
+    <br>
     <form id="filter-form">
         <label for="qualifying_score">Qualifying Score:</label>
         <input type="number" id="qualifying_score" name="qualifying_score" value="{{ qualifying_score }}"
